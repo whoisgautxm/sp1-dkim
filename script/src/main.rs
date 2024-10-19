@@ -12,6 +12,8 @@ const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+        // Setup the logger.
+    sp1_sdk::utils::setup_logger();
     let from_domain = "phonepe.com";
 
     let mut file = File::open("./email.eml")?;

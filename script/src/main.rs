@@ -1,7 +1,7 @@
 use cfdkim::{dns, header::HEADER, public_key::retrieve_public_key, validate_header};
 use mailparse::MailHeaderMap;
+use regex::Regex;
 use sp1_sdk::{ProverClient, SP1Stdin};
-use std::env;
 use std::fs::File;
 use std::io::Read;
 use std::sync::Arc;
@@ -12,11 +12,9 @@ const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args: Vec<String> = env::args().collect();
-    let from_domain = &args[2];
-    let email_path = &args[3];
+    let from_domain = "phonepe.com";
 
-    let mut file = File::open(email_path)?;
+    let mut file = File::open("./email.eml")?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
     let raw_email = contents.replace('\n', "\r\n");
@@ -52,13 +50,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let (pk, vk) = client.setup(ELF);
         let mut proof = client.prove(&pk, stdin).run()?;
 
-        // println!("result: {:?}", proof.public_values.read_slice());
-        // println!("result: {:?}", proof.public_values.read_slice());
-        // println!("result: {:?}", proof.public_values.read::<bool>());
+        let result = proof.public_values.read::<bool>();
+
+        if result {
+            let txn_id_re = Regex::new(r"Txn\.\s*ID\s*=\s*\n\s*:\s*=\s*\n\s*(\S+)").unwrap();
+            let email_content = String::from_utf8_lossy(&raw_email.as_bytes().to_vec()).to_string(); // Create a longer-lived value
+
+            match txn_id_re.captures(&email_content) {
+                // Use the longer-lived value
+                Some(caps) => {
+                    let txn_id = caps.get(1).unwrap().as_str();
+                    println!("Extracted Transaction ID: {}", txn_id);
+                }
+                None => println!("Transaction ID not found"),
+            }
+
+            let amount_re = Regex::new(r"&#8377;\s*(\d+)").unwrap();
+
+            match amount_re.captures(&email_content) {
+                Some(caps) => {
+                    let amount = caps.get(1).unwrap().as_str();
+                    println!("Extracted Amount: ₹{}", amount);
+                }
+                None => println!("Amount not found"),
+            }
+        } else {
+            println!("Email is not verified");
+        }
 
         client.verify(&proof, &vk).expect("verification failed");
 
-        proof.save("proof.json").expect("saving proof failed");
+        proof.save("proof.bin").expect("saving proof failed");
         return Ok(());
     }
 

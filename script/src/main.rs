@@ -10,13 +10,28 @@ use trust_dns_resolver::TokioAsyncResolver;
 
 const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
 
+fn extract_info(content: &str, pattern: &str, field_name: &str) -> Option<String> {
+    let re = Regex::new(pattern).unwrap();
+    match re.captures(content) {
+        Some(caps) => {
+            let value = caps.get(1).unwrap().as_str().trim().to_string();
+            println!("Extracted {}: {}", field_name, value);
+            Some(value)
+        }
+        None => {
+            println!("{} not found", field_name);
+            None
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-        // Setup the logger.
+    // Setup the logger.
     sp1_sdk::utils::setup_logger();
     let from_domain = "phonepe.com";
 
-    let mut file = File::open("./email.eml")?;
+    let mut file = File::open("./email1.eml")?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
     let raw_email = contents.replace('\n', "\r\n");
@@ -53,28 +68,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut proof = client.prove(&pk, stdin).run()?;
 
         let result = proof.public_values.read::<bool>();
+        println!("Email verification result: {}", result);
 
         if result {
-            let txn_id_re = Regex::new(r"Txn\.\s*ID\s*=\s*\n\s*:\s*=\s*\n\s*(\S+)").unwrap();
-            let email_content = String::from_utf8_lossy(&raw_email.as_bytes().to_vec()).to_string(); // Create a longer-lived value
+            let email_content = String::from_utf8_lossy(&raw_email.as_bytes().to_vec()).to_string(); 
 
-            match txn_id_re.captures(&email_content) {
-                // Use the longer-lived value
-                Some(caps) => {
-                    let txn_id = caps.get(1).unwrap().as_str();
-                    println!("Extracted Transaction ID: {}", txn_id);
-                }
-                None => println!("Transaction ID not found"),
-            }
+            // Define regex patterns
+            let patterns = [
+                (r"Txn\.\s*ID\s*=\s*\n\s*:\s*=\s*\n\s*(\S+)","Transaction ID"),
+                (r"Paid to\s*=\s*\n\s*(\S+(?:\s+\S+\s\S*))", "Paid to name"),
+                (r"&#8377;\s*(\d+)", "Amount"),
+            ];
 
-            let amount_re = Regex::new(r"&#8377;\s*(\d+)").unwrap();
-
-            match amount_re.captures(&email_content) {
-                Some(caps) => {
-                    let amount = caps.get(1).unwrap().as_str();
-                    println!("Extracted Amount: ₹{}", amount);
-                }
-                None => println!("Amount not found"),
+            // Extract information using the Mail content and regex patterns
+            for (pattern, field_name) in patterns.iter() {
+                extract_info(&email_content, pattern, field_name);
             }
         } else {
             println!("Email is not verified");

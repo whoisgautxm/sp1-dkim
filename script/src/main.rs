@@ -15,7 +15,7 @@ fn extract_info(content: &str, pattern: &str, field_name: &str) -> Option<String
     match re.captures(content) {
         Some(caps) => {
             let value = caps.get(1).unwrap().as_str().trim().to_string();
-            println!("Extracted {}: {}", field_name, value);
+            println!("{}:{}", field_name, value);
             Some(value)
         }
         None => {
@@ -31,7 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     sp1_sdk::utils::setup_logger();
     let from_domain = "phonepe.com";
 
-    let mut file = File::open("./email1.eml")?;
+    let mut file = File::open("/home/whoisgautxm/Desktop/sp1-dkim/script/email.eml")?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
     let raw_email = contents.replace('\n', "\r\n");

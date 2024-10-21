@@ -1,4 +1,5 @@
 require('dotenv').config(); // Load environment variables from .env file
+const cors = require('cors');
 const express = require('express');
 const multer = require('multer');
 const { exec } = require('child_process');
@@ -8,8 +9,12 @@ const fs = require('fs');
 // Initialize Express app
 const app = express();
 
+app.use(cors());
+app.use(express.json());
+
 // Set up multer for file uploads, storing files in the 'script/' directory
 const upload = multer({ dest: 'script/' });
+let verificationResult = {};
 
 // POST route to handle the file upload and DKIM verification
 app.post('/verify-dkim', upload.single('email_file'), (req, res) => {
@@ -63,6 +68,21 @@ app.post('/verify-dkim', upload.single('email_file'), (req, res) => {
                         res.json({ message: 'DKIM Verification Result: Email is not verified.' });
                     }
 
+                    const transactionId = runStdout.match(/Transaction ID:([^\n]*)/)[1].trim();
+                    const paidToName = runStdout.match(/Paid to name:([^\n]*)/)[1].trim();
+                    const extractedAmount = runStdout.match(/Extracted Amount:([^\n]*)/)[1].trim();
+
+                    const result = {
+                        transactionId,
+                        paidToName,
+                        amount,
+                        verified: Boolean(transactionId && paidToName && amount)
+                    };
+
+                    verificationResult = result;
+
+                    res.json(result);
+
                     // Step 3: Clean up by deleting the uploaded file
                     fs.unlink(filePath, (unlinkError) => {
                         if (unlinkError) {
@@ -75,6 +95,12 @@ app.post('/verify-dkim', upload.single('email_file'), (req, res) => {
             });
         });
     });
+});
+app.get('/get-verification-result', (req, res) => {
+    if (verificationResult) {
+        return res.json(verificationResult);  // Send back the stored result
+    }
+    return res.status(404).json({ message: "No result found" });
 });
 
 // Start the server

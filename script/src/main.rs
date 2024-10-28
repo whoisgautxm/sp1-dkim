@@ -1,12 +1,27 @@
+use aligned_sdk::core::types::{Network, PriceEstimate, ProvingSystemId, VerificationData};
+use aligned_sdk::sdk::{deposit_to_aligned, estimate_fee, get_payment_service_address};
+use aligned_sdk::sdk::{get_next_nonce, submit_and_wait_verification};
 use cfdkim::{dns, header::HEADER, public_key::retrieve_public_key, validate_header};
+use ethers::middleware::SignerMiddleware;
+use ethers::providers::Middleware;
+use ethers::types::U256;
+use ethers::utils::hex;
+use ethers::{
+    providers::{Http, Provider},
+    signers::{LocalWallet, Signer},
+};
 use mailparse::MailHeaderMap;
 use regex::Regex;
 use sp1_sdk::{ProverClient, SP1Stdin};
+use std::env;
+use std::fs;
 use std::fs::File;
 use std::io::Read;
 use std::sync::Arc;
 use tokio;
 use trust_dns_resolver::TokioAsyncResolver;
+const BATCHER_URL: &str = "wss://batcher.alignedlayer.com";
+const NETWORK: Network = Network::Holesky;
 
 const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
 
@@ -71,11 +86,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("Email verification result: {}", result);
 
         if result {
-            let email_content = String::from_utf8_lossy(&raw_email.as_bytes().to_vec()).to_string(); 
+            let email_content = String::from_utf8_lossy(&raw_email.as_bytes().to_vec()).to_string();
 
             // Define regex patterns
             let patterns = [
-                (r"Txn\.\s*ID\s*=\s*\n\s*:\s*=\s*\n\s*(\S+)","Transaction ID"),
+                (
+                    r"Txn\.\s*ID\s*=\s*\n\s*:\s*=\s*\n\s*(\S+)",
+                    "Transaction ID",
+                ),
                 (r"Paid to\s*=\s*\n\s*(\S+(?:\s+\S+\s\S*))", "Paid to name"),
                 (r"&#8377;\s*(\d+)", "Amount"),
             ];
@@ -88,12 +106,72 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Email is not verified");
         }
 
-        client.verify(&proof, &vk).expect("verification failed");
+        // client.verify(&proof, &vk).expect("verification failed");
 
-        proof.save("proof.bin").expect("saving proof failed");
+        let rpc_url: String = "https://ethereum-holesky-rpc.publicnode.com".to_string();
+        println!("RPC URL: {}", rpc_url);
+
+        let provider =
+            Provider::<Http>::try_from(rpc_url.clone()).expect("Failed to create provider");
+        let chain_id = U256::from(17000);
+        let private_key = "";
+        let wallet: LocalWallet = private_key
+            .parse::<LocalWallet>()
+            .expect("Failed to parse the wallet")
+            .with_chain_id(chain_id.as_u64());
+
+        let signer = SignerMiddleware::new(provider.clone(), wallet.clone());
+        // Just call once to have sufficient balance
+        println!("Wallet: {:?}", wallet);
+        let elf_path = format!("../program/elf/riscv32im-succinct-zkvm-elf");
+        let elf = fs::read(&elf_path)?;
+        let proof = bincode::serialize(&proof).expect("Failed to serialize proof");
+        let verification_data = VerificationData {
+            proving_system: ProvingSystemId::SP1,
+            proof,
+            proof_generator_addr: wallet.address(),
+            vm_program_code: Some(elf.to_vec()),
+            verification_key: None,
+            pub_input: None,
+        };
+
+        let rpc_str: &str = &rpc_url;
+
+        let mut max_fee = estimate_fee(&rpc_str, PriceEstimate::Instant)
+            .await
+            .expect("Failed to estimate fee");
+        max_fee *= 2;
+        let nonce: U256 = get_next_nonce(&rpc_url, wallet.address(), NETWORK)
+            .await
+            .expect("Failed to get nonce");
+
+        println!("Max fee: {}, Nonce: {}", max_fee, nonce);
+
+        let aligned_verification_data = submit_and_wait_verification(
+            BATCHER_URL,
+            &rpc_url,
+            NETWORK,
+            &verification_data,
+            max_fee,
+            wallet.clone(),
+            nonce,
+        )
+        .await
+        .unwrap();
+
+        println!(
+            "Proof submitted and verified successfully on batch {}",
+            hex::encode(aligned_verification_data.batch_merkle_root)
+        );
+
+       
+        // client.verify(&proof, &vk).expect("verification failed");
+
+        // proof.save("proof.bin").expect("saving proof failed");
+        // proof.save("proof.json").expect("saving proof failed");
+
         return Ok(());
     }
-
     println!("Invalid from_domain.");
     Ok(())
 }

@@ -68,16 +68,16 @@ app.post('/verify-dkim', upload.single('email_file'), (req, res) => {
                         res.json({ message: 'DKIM Verification Result: Email is not verified.' });
                     }
 
-                    const transactionId = runStdout.match(/Transaction ID:([^\n]*)/)[1].trim();
-                    const paidToName = runStdout.match(/Paid to name:([^\n]*)/)[1].trim();
-                    const extractedAmount = runStdout.match(/Extracted Amount:([^\n]*)/)[1].trim();
+                    // const transactionId = runStdout.match(/Transaction ID:([^\n]*)/)[1].trim();
+                    // const paidToName = runStdout.match(/Paid to name:([^\n]*)/)[1].trim();
+                    // const extractedAmount = runStdout.match(/Extracted Amount:([^\n]*)/)[1].trim();
 
-                    const result = {
-                        transactionId,
-                        paidToName,
-                        amount,
-                        verified: Boolean(transactionId && paidToName && amount)
-                    };
+                    // const result = {
+                    //     transactionId,
+                    //     paidToName,
+                    //     amount,
+                    //     verified: Boolean(transactionId && paidToName && amount)
+                    // };
 
                     verificationResult = result;
 

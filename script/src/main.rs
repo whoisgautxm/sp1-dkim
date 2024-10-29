@@ -1,9 +1,8 @@
 use aligned_sdk::core::types::{Network, PriceEstimate, ProvingSystemId, VerificationData};
-use aligned_sdk::sdk::{deposit_to_aligned, estimate_fee, get_payment_service_address};
+use aligned_sdk::sdk:: estimate_fee;
 use aligned_sdk::sdk::{get_next_nonce, submit_and_wait_verification};
 use cfdkim::{dns, header::HEADER, public_key::retrieve_public_key, validate_header};
 use ethers::middleware::SignerMiddleware;
-use ethers::providers::Middleware;
 use ethers::types::U256;
 use ethers::utils::hex;
 use ethers::{
@@ -13,7 +12,6 @@ use ethers::{
 use mailparse::MailHeaderMap;
 use regex::Regex;
 use sp1_sdk::{ProverClient, SP1Stdin};
-use std::env;
 use std::fs;
 use std::fs::File;
 use std::io::Read;
@@ -114,7 +112,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let provider =
             Provider::<Http>::try_from(rpc_url.clone()).expect("Failed to create provider");
         let chain_id = U256::from(17000);
-        let private_key = "";
+        let private_key = "0x85e9fc5a95ae6f25cef7b266748722b8935e242648bfc7f7a9f3fe5dd9f301c0";
         let wallet: LocalWallet = private_key
             .parse::<LocalWallet>()
             .expect("Failed to parse the wallet")

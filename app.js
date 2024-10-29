@@ -53,7 +53,7 @@ app.post('/verify-dkim', upload.single('email_file'), (req, res) => {
                 console.log('Rust project built successfully');
 
                 // Step 2: Set up and run the Rust DKIM verifier binary with the uploaded .eml file as input
-                exec(`SP1_PROVER=network SP1_PRIVATE_KEY=${process.env.SP1_PRIVATE_KEY} RUST_LOG=info cargo run --release -- --prove`, { cwd: rustProjectDir }, (runError, runStdout, runStderr) => {
+                exec(`RUST_LOG=info cargo run --release -- --prove`, { cwd: rustProjectDir }, (runError, runStdout, runStderr) => {
                     if (runError) {
                         console.error('Error running Rust DKIM verifier:', runStderr);
                         return res.status(500).json({ message: 'Error during DKIM verification: ' + runStderr });
